@@ -1,6 +1,7 @@
 # Rust Fluid
 2d *fluid simulation* made with rust and ggez
 
+![Preview](image.gif)
 
 # Run
 ```bash
