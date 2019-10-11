@@ -48,10 +48,10 @@ impl Agent {
             // weirdness: utils::rand_float(0.1, 15.5),
 
             view_range: 10.0,
-            pos_w: -1.0,
-            vel_w: 2.0,
+            pos_w: -10.0,
+            vel_w: 10.0,
             drag: 0.0,
-            max_acc: 100.0,
+            max_acc: 5.0,
             weirdness: 1.0,
         }
     }
@@ -161,7 +161,7 @@ impl Agent {
                 diff.div(diff.mag().powi(2));
                 avg_pos.sub(&diff);
             });
-            // avg_pos.div(in_range.len() as f32);
+            avg_pos.div(in_range.len() as f32);
 
             let diff = avg_vel.mul(self.vel_w)
             .add(avg_pos.mul(self.pos_w))
@@ -170,7 +170,7 @@ impl Agent {
 
             // let mut diff = avg_pos;
             diff.limit(self.max_acc);
-
+            diff.mul(2.0);
             self.vel.add(&diff);
         }
 

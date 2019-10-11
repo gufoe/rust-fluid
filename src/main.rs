@@ -9,9 +9,9 @@ mod ag;
 mod utils;
 mod latex;
 
-const AGENT_NUM: usize = 25000;
-const ST_LEN: usize = 80;
-const BRUSH_SIZE: f32 = 100.0;
+const AGENT_NUM: usize = 20000;
+const ST_LEN: usize = 40;
+const BRUSH_SIZE: f32 = 50.0;
 
 fn main() {
     rayon::ThreadPoolBuilder::new().num_threads(12).build_global().unwrap();
@@ -133,7 +133,7 @@ impl MyGame {
     }
 
     pub fn update_latex(&mut self, w: f32, h: f32) {
-        let mut latex = Latex2D::new(w / self.latex_div, w, h);
+        let mut latex = Latex2D::new(w / 2.0 / self.latex_div, w, h);
         let _t0 = utils::now();
         self.agents.iter().for_each(|x| latex.add((x.pos.x, x.pos.y), x.clone()));
         // println!("latex:   {:.3}", utils::now() - _t0);
@@ -232,9 +232,9 @@ impl EventHandler for MyGame {
                 if dist > radius { return; }
                 let mut d = d.clone();
                 // d.mul(2.0);
-                d.mul(( 1.0 - dist / radius) * 0.3);
+                d.mul(( 1.0 - dist / radius) * 0.1);
                 x.vel.add(&d);
-                x.pos.add(&d);
+                // x.pos.add(&d);
             });
         }
     }
