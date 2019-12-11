@@ -27,17 +27,18 @@ pub struct Agent {
 
 impl Agent {
     pub fn new(id: usize, pos: vec::Vec, vel: vec::Vec) -> Agent {
-        Agent {
+        let mut a = Agent {
             id,
             pos,
             vel,
             s_vel: 0.0,
             s_in_range: 0,
-            radius: 2.0,
+            radius: 5.0,
             color: [
-                utils::rand_float(0.3, 1.0),
-                utils::rand_float(0.3, 1.0),
-                utils::rand_float(0.3, 1.0),
+                // 0.1,0.1,0.1,
+                utils::rand_float(0.0, 1.0),
+                utils::rand_float(0.0, 1.0),
+                utils::rand_float(0.0, 1.0),
             ],
 
             // view_range: utils::rand_float(5.0, 200.0),
@@ -53,91 +54,93 @@ impl Agent {
             drag: 0.0,
             max_acc: 5.0,
             weirdness: 1.0,
-        }
+        };
+        utils::norm(&mut a.color);
+        a
+    }
+
+    fn red (&self) -> f32 {
+        // self.color[0]
+        self.color[0] / (self.color[1] + self.color[2]).max(0.2)
+    }
+    fn green (&self) -> f32 {
+        // self.color[1]
+        self.color[1] / (self.color[0] + self.color[2]).max(0.2)
+    }
+    fn blue (&self) -> f32 {
+        // self.color[2]
+        self.color[2] / (self.color[0] + self.color[1]).max(0.2)
+    }
+    fn white (&self) -> f32 {
+        (self.color[0] + self.color[1] + self.color[2]) / 3.0
     }
 
     pub fn update(&mut self, update: &Update) {
-        let mut in_range = update.agents.get((self.pos.x, self.pos.y), self.view_range);
-        in_range.retain(|x| {
+        let mut in_range_incl = update.agents.get((self.pos.x, self.pos.y), self.view_range);
+        in_range_incl.retain(|x| {
             let d = self.pos.dist_mod(&x.pos, update.w, update.h);
-            self.id != x.id &&
             d < self.view_range
+        });
+        // assert!(self.view_range > 0.0);
+        // assert!(!in_range.is_empty());
+        let mut in_range = in_range_incl.clone();
+        in_range.retain(|x| {
+            self.id != x.id
         });
 
 
 
         if !in_range.is_empty() {
-
+            let mut entour = [0.0,0.0,0.0];
             let mut dom: Option<(f32, &Agent)> = None;
-            in_range.iter().for_each(|x| {
+            in_range_incl.iter().for_each(|x| {
+                entour[0]+= x.color[0] as f32;
+                entour[1]+= x.color[1] as f32;
+                entour[2]+= x.color[2] as f32;
                 let d = self.vel.dist(&x.vel);
                 // let mut d = self.pos.dist_mod(&x.pos, update.w, update.h);
                 if dom.is_none() || dom.unwrap().0 < d {
                     dom = Some((d, x));
                 }
             });
-            match dom {
-                None => {},
-                Some((_, dom)) => {
-                    self.color = dom.color;
-                    // self.color[0] = dom.color[0];
-                    // self.color[1] = dom.color[2];
-                    // self.color[2] = dom.color[1];
-                    // let w = 1.0 / (1.0+in_range.len() as f32);
+            utils::norm(&mut entour);
+            // utils::vavg(&mut self.color, &entour, 0.5);
 
-                    // let w = 0.01;
-                    // self.color[0] = self.color[0] / (1.0+w) + dom.color[0] * w;
-                    // self.color[1] = self.color[1] / (1.0+w) + dom.color[1] * w;
-                    // self.color[2] = self.color[2] / (1.0+w) + dom.color[2] * w;
-                    // if in_range.len() > self.s_in_range * 20 {
-                    //     self.color[0] = utils::rand_float(0.1, 0.99);
-                    //     self.color[1] = utils::rand_float(0.1, 0.99);
-                    //     self.color[2] = utils::rand_float(0.1, 0.99);
-                    // }
+            // if entour[0] < 0.9 {
+            //     utils::eavg(&mut self.color[0], entour[1], 0.001);
+            //     utils::eavg(&mut self.color[2], entour[2], 0.001);
+            // }
+            // if entour[1] < 0.9 {
+            //     utils::eavg(&mut self.color[1], entour[2], 0.001);
+            //     utils::eavg(&mut self.color[0], entour[0], 0.001);
+            // }
+            // if entour[2] < 0.9 {
+            //     utils::eavg(&mut self.color[2], entour[0], 0.001);
+            //     utils::eavg(&mut self.color[1], entour[1], 0.001);
+            // }
 
-                    // if in_range.len() > self.s_in_range+2 {
-                    //     self.color[0]*= 1.01;
-                    //     self.color[1]*= 1.01;
-                    //     self.color[2]*= 1.01;
-                    // } else if in_range.len() < self.s_in_range-2 {
-                    //     self.color[0]*= 0.99;
-                    //     self.color[1]*= 0.99;
-                    //     self.color[2]*= 0.99;
-                    // }
 
-                    // let mut min = 1.0;
-                    // if self.color[0] < min { min = self.color[0]; }
-                    // if self.color[1] < min { min = self.color[1]; }
-                    // if self.color[2] < min { min = self.color[2]; }
-                    // self.color[0]-= min;
-                    // self.color[1]-= min;
-                    // self.color[2]-= min;
-                    // let mut max = 1.0;
-                    // if self.color[0] > max { max = self.color[0]; }
-                    // if self.color[1] > max { max = self.color[1]; }
-                    // if self.color[2] > max { max = self.color[2]; }
-                    // self.color[0]*= (1.0/max);
-                    // self.color[1]*= (1.0/max);
-                    // self.color[2]*= (1.0/max);
-                    //
-                    // self.color.iter_mut().for_each(|x| *x*= 1.0001);
-                    // if self.color[0] > 0.99 { self.color[0] = utils::rand_float(0.1, 0.5); }
-                    // if self.color[1] > 0.99 { self.color[1] = utils::rand_float(0.4, 0.95); }
-                    // if self.color[2] > 0.99 { self.color[2] = utils::rand_float(0.1, 0.9); }
-                    // if self.color[0] < 0.1 { self.color[0] = utils::rand_float(0.1, 0.5); }
-                    // if self.color[1] < 0.1 { self.color[1] = utils::rand_float(0.4, 0.95); }
-                    // if self.color[2] < 0.1 { self.color[2] = utils::rand_float(0.1, 0.9); }
-                }
-            }
+            // match dom {
+            //     None => {},
+            //     Some((_, dom)) => {
+            //     }
+            // }
 
-            // self.drag = (self.color[0] ) * 0.01;
-            // self.pos_w = -1.25 +(1.0- self.color[0]*1.0) + self.color[1] * 0.1 + self.color[2] * 0.1;
-            // self.pos_w = (-self.color[0]*1.0 - self.color[2]*1.0) * (1.0-self.color[1]);
-            // self.vel_w = -self.color[1]*20.0 - self.color[0] - self.color[1];
-            // self.view_range = 10. + 100.0 * (self.color[2]);
-            // self.vel_w = self.color[0]*10.0;
-            // self.pos_w = -self.color[1]*10.0;
-            // self.weirdness = self.color[1]*5.0;
+            utils::norm(&mut self.color);
+            // self.drag = 0.02+(self.white()*0.8).powi(2)*0.01;
+            // // self.pos_w = -1.25 +(1.0- self.color[0]*1.0) + self.color[1] * 0.1 + self.color[2] * 0.1;
+            // {
+            //     self.pos_w = self.color[1] * 2.0;
+            //     self.vel_w = self.color[0] * 2.0;
+            //
+            //     self.pos_w = self.pos_w.max(0.01);
+            //     self.vel_w = self.vel_w.max(0.01);
+            //     self.view_range = 10.0 + 20.0 * self.color[2];
+            //     self.pos_w*= -1.0;
+            // }
+            // self.pos_w = -self.color[0].min(1.0).max(0.2)*20.0;
+            // // self.vel_w = (1.0-self.color[1]*2.0).min(1.0).max(0.2)*10.0;
+            // self.weirdness = 2.0;
             // self.drag = (1.0-self.color[2])*0.1;
 
             // self.pos_w = -30.0;
@@ -174,7 +177,7 @@ impl Agent {
             self.vel.add(&diff);
         }
 
-        // self.vel.limit(3.0);
+        self.vel.limit(10.0);
         self.pos.add(&self.vel);
         self.vel.mul(1.0-self.drag);
 
@@ -203,15 +206,21 @@ impl Agent {
         // let g = g;
         // let q = 0.0;
 
+        // let col = graphics::Color::new(
+        //     q,
+        //     g,
+        //     q*g, (q*g).max(0.1));
         let col = graphics::Color::new(
-            q,
-            g,
-            q*g, (q*g).max(0.1));
+            self.color[0],
+            self.color[1],
+            self.color[2],
+            (q + g) / 2.0);
+        // let col = graphics::Color::new(1.0,1.0,1.0, (q*g).max(0.4));
         mb.circle(
             graphics::DrawMode::fill(),
             ggez::nalgebra::Point2::new(self.pos.x, self.pos.y),
-            self.radius,
-            30.0,
+            4.5,
+            2.0,
             // graphics::Color::new(q/2.0+0.1, g, q*g, (g*q).max(0.1)),
             col
             // graphics::Color::new(g, 1.0 - g * 0.9, q, 0.5+g*0.5),

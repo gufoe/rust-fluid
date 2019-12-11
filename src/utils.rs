@@ -35,3 +35,74 @@ pub fn now() -> f64 {
 pub fn avg(numbers: &[f32]) -> f32 {
     numbers.iter().sum::<f32>() / numbers.len() as f32
 }
+pub fn vavg(a: &mut [f32], b: &[f32], x: f32) {
+    for i in 0..a.len() {
+        a[i]+= b[i] * x;
+        a[i]/= 1.0 + x;
+    }
+}
+pub fn sum(a: &[f32; 3], b: &[f32; 3]) -> [f32; 3] {
+    [
+        a[0] + b[0],
+        a[1] + b[1],
+        a[2] + b[2],
+    ]
+}
+pub fn eavg(a: &mut f32, b: f32, x: f32) {
+        *a+= b * x;
+        *a/= 1.0 + x;
+}
+
+pub fn softmax(v: &mut [f32]) {
+    norm(v);
+    let sum = v.iter().fold(0.0, |sum, &val| sum+val);
+    if sum > 0. {
+        for n in v { *n /= sum }
+    }
+}
+pub fn softmax_fast(v: &mut [f32]) {
+    let sum = v.iter().fold(0.0, |sum, &val| sum+val);
+    if sum > 0. {
+        for n in v { *n /= sum }
+    }
+}
+
+pub fn norm(v: &mut [f32]) {
+    let mut max = -9999999999.0;
+    let mut min = 9999999999.0;
+    for i in v.iter() {
+        if *i > max {
+            max = *i;
+        }
+        if *i < min {
+            min = *i;
+        }
+    }
+    let mut n = max-min;
+    if n == 0. {
+        n = 1.;
+    }
+    for i in v.iter_mut() {
+        *i-= min;
+        *i/= n;
+    }
+}
+pub fn norm_2(v: &mut [f32]) {
+    let mut max = -9999999999.0;
+    let mut min = 9999999999.0;
+    for i in v.iter() {
+        if *i > max {
+            max = *i;
+        }
+        if *i < min {
+            min = *i;
+        }
+    }
+    let mut n = max-min;
+    if n == 0. {
+        n = 1.;
+    }
+    for i in v.iter_mut() {
+        *i/= n;
+    }
+}
