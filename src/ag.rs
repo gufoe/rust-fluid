@@ -6,6 +6,7 @@ pub struct Update <'a> {
     pub w: f32,
     pub h: f32,
     pub agents: &'a crate::latex::Latex2D<Agent>,
+    pub gravity: Vec<vec::Vec>,
 }
 
 #[derive(Clone, Copy)]
@@ -48,9 +49,9 @@ impl Agent {
             // max_acc: utils::rand_float(0.01, 0.4),
             // weirdness: utils::rand_float(0.1, 15.5),
 
-            view_range: 10.0,
-            pos_w: -10.0,
-            vel_w: 10.0,
+            view_range: 17.0,
+            pos_w: -0.1,
+            vel_w: 1.0,
             drag: 0.0,
             max_acc: 5.0,
             weirdness: 1.0,
@@ -106,18 +107,18 @@ impl Agent {
             utils::norm(&mut entour);
             // utils::vavg(&mut self.color, &entour, 0.5);
 
-            // if entour[0] < 0.9 {
-            //     utils::eavg(&mut self.color[0], entour[1], 0.001);
-            //     utils::eavg(&mut self.color[2], entour[2], 0.001);
-            // }
-            // if entour[1] < 0.9 {
-            //     utils::eavg(&mut self.color[1], entour[2], 0.001);
-            //     utils::eavg(&mut self.color[0], entour[0], 0.001);
-            // }
-            // if entour[2] < 0.9 {
-            //     utils::eavg(&mut self.color[2], entour[0], 0.001);
-            //     utils::eavg(&mut self.color[1], entour[1], 0.001);
-            // }
+            if entour[0] < 0.9 {
+                utils::eavg(&mut self.color[0], entour[1], 0.01);
+                utils::eavg(&mut self.color[2], entour[2], 0.01);
+            }
+            if entour[1] < 0.9 {
+                utils::eavg(&mut self.color[1], entour[2], 0.01);
+                utils::eavg(&mut self.color[0], entour[0], 0.01);
+            }
+            if entour[2] < 0.9 {
+                utils::eavg(&mut self.color[2], entour[0], 0.01);
+                utils::eavg(&mut self.color[1], entour[1], 0.01);
+            }
 
 
             // match dom {
@@ -129,15 +130,16 @@ impl Agent {
             utils::norm(&mut self.color);
             // self.drag = 0.02+(self.white()*0.8).powi(2)*0.01;
             // // self.pos_w = -1.25 +(1.0- self.color[0]*1.0) + self.color[1] * 0.1 + self.color[2] * 0.1;
-            // {
-            //     self.pos_w = self.color[1] * 2.0;
-            //     self.vel_w = self.color[0] * 2.0;
-            //
-            //     self.pos_w = self.pos_w.max(0.01);
-            //     self.vel_w = self.vel_w.max(0.01);
-            //     self.view_range = 10.0 + 20.0 * self.color[2];
-            //     self.pos_w*= -1.0;
-            // }
+            {
+                self.pos_w = 0.2 + self.color[1] * 4.0;
+                self.vel_w = self.color[0] * 1.0;
+
+                self.pos_w = (self.pos_w / 100.0).max(0.01);
+                self.vel_w = (self.vel_w / 100.0).max(0.01);
+                self.view_range = (10.0 + 20.0 * self.color[2]) * 0.2;
+                self.pos_w*= -1.0;
+                self.drag = self.color[0] * 0.01 + self.color[1] * 0.001;
+            }
             // self.pos_w = -self.color[0].min(1.0).max(0.2)*20.0;
             // // self.vel_w = (1.0-self.color[1]*2.0).min(1.0).max(0.2)*10.0;
             // self.weirdness = 2.0;
@@ -161,25 +163,41 @@ impl Agent {
             in_range.iter().for_each(|x| {
                 let mut diff = self.pos.clone();
                 diff.sub(&self.pos.rel(&x.pos, update.w, update.h));
-                diff.div(diff.mag().powi(2));
+                diff.div(diff.mag().max(1.0).powi(2));
                 avg_pos.sub(&diff);
             });
             avg_pos.div(in_range.len() as f32);
 
+            avg_vel.norm(1.0);
+            avg_pos.norm(1.0);
             let diff = avg_vel.mul(self.vel_w)
             .add(avg_pos.mul(self.pos_w))
             .div(self.pos_w.abs() + self.vel_w.abs())
             .mul(self.weirdness);
 
             // let mut diff = avg_pos;
-            diff.limit(self.max_acc);
-            diff.mul(2.0);
+            // diff.limit(self.max_acc);
+            // diff.norm(0.5);
+            diff.mul(0.1);
             self.vel.add(&diff);
         }
 
-        self.vel.limit(10.0);
+        // self.vel.limit(10.0);
         self.pos.add(&self.vel);
         self.vel.mul(1.0-self.drag);
+
+
+        for mut g in update.gravity.iter().cloned() {
+            // let mut g = vec::Vec::new_from(update.w, update.h);
+            g.sub(&self.pos);
+            let mag = g.mag();
+            g.mul(1.0/(100.0 + mag*mag));
+            self.vel.add(&g);
+        }
+        // if self.pos.y > update.h {
+        //     self.vel.y*= -0.8;
+        //     self.pos.y = update.h - (update.h - self.pos.y).abs();
+        // }
 
         while self.pos.x > update.w { self.pos.x-= update.w }
         while self.pos.x < 0.0 { self.pos.x+= update.w }
@@ -199,7 +217,7 @@ impl Agent {
 
 
         let mut g = self.s_vel as f32 / max_vel * 1.5;
-        let mut q = self.s_in_range as f32 / max_range;
+        let mut q = 1.0f32;// self.s_in_range as f32 / max_range;
 
         g = ((g-0.0)*1.0).max(0.0);
         q = ((q-0.0)*1.0).max(0.0);

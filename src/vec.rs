@@ -59,7 +59,9 @@ impl Vec {
     #[allow(dead_code)]
     pub fn norm(&mut self, v: f32) -> &mut Vec {
         let mag = self.mag();
-        self.mul(v/mag);
+        if mag > 0.0 {
+            self.mul(v/mag);
+        }
         self
     }
     #[allow(dead_code)]

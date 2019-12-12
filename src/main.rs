@@ -10,7 +10,7 @@ mod ag;
 mod utils;
 mod latex;
 
-const AGENT_NUM: usize = 20000;
+const AGENT_NUM: usize = 2000;
 const ST_LEN: usize = 40;
 const BRUSH_SIZE: f32 = 50.0;
 
@@ -66,6 +66,7 @@ struct MyGame {
     latex_div: f32,
     avg_stats_vel: Vec<f32>,
     avg_stats_range: Vec<f32>,
+    fast: usize,
 }
 
 impl MyGame {
@@ -100,6 +101,7 @@ impl MyGame {
             latex_div: 4.0,
             avg_stats_vel: vec![],
             avg_stats_range: vec![],
+            fast: 0,
             // pool: scoped_threadpool::Pool::new(8),
         };
 
@@ -145,16 +147,25 @@ impl MyGame {
 impl EventHandler for MyGame {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         let (w, h) = graphics::drawable_size(ctx);
-        self.update_latex(w, h);
+        for _ in 0..(self.fast*self.fast*10 + 1) {
+            self.update_latex(w, h);
 
-        let update = ag::Update {
-            w,
-            h,
-            agents: &self.latex,
-        };
+            let dx = (self.frames as f32 * 0.001).cos() * 0.4;
+            let dy = (self.frames as f32 * 0.001).sin() * 0.4;
 
-        let _t0 = utils::now();
-        self.agents.par_iter_mut().for_each(|x| x.update(&update));
+            let update = ag::Update {
+                w,
+                h,
+                agents: &self.latex,
+                gravity: vec![
+                vec::Vec::new_from(w*0.5, h*0.5),
+                vec::Vec::new_from(w*(0.5 + dx), h*(0.5 + dy)),
+                ],
+            };
+
+            let _t0 = utils::now();
+            self.agents.par_iter_mut().for_each(|x| x.update(&update));
+        }
         self.update_latex(w, h);
         // println!("update:  {:.3}", utils::now() - _t0);
         // self.agents.remove(0);
@@ -171,7 +182,7 @@ impl EventHandler for MyGame {
         // Draw bbackground
         let mut mb_bg = &mut graphics::MeshBuilder::new();
         mb_bg.rectangle(graphics::DrawMode::fill(), graphics::Rect::new(0.0, 0.0, w, h),
-                graphics::Color::new(0.0, 0.0, 0.0, 0.62));
+                graphics::Color::new(0.0, 0.0, 0.0, 1.62));
 
         // Get stats
         let max_speed: f32 = self.agents.par_iter()
@@ -344,6 +355,12 @@ impl EventHandler for MyGame {
                     let s = self.agents.len();
                     self.agents.get_mut(utils::rand_usize(s)).unwrap().color = [0.0, 1.0, 0.0];
                 }
+
+            }
+            KeyCode::F => {
+                println!("making fast");
+                self.fast+= 1;
+                self.fast%= 3;
 
             }
             _ => (),
