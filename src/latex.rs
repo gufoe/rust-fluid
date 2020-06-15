@@ -1,5 +1,6 @@
 // use std::collections::HashMap;
 use hashbrown::HashMap;
+use crate::utils;
 
 
 #[derive(Clone)]
@@ -7,7 +8,7 @@ pub struct Latex2D<T> {
     resolution: f32,
     pub w: f32,
     pub h: f32,
-    cells: HashMap<(i32, i32), Vec<T>>,
+    cells: HashMap<(i16, i16), Vec<T>>,
 }
 
 impl<T> Latex2D<T>
@@ -22,8 +23,8 @@ where T: Clone {
 
     pub fn add(&mut self, pos: (f32, f32), element: T) {
         let pos = (
-            (pos.0 / self.resolution) as i32,
-            (pos.1 / self.resolution) as i32,
+            (pos.0 / self.resolution) as i16,
+            (pos.1 / self.resolution) as i16,
         );
         if !self.cells.contains_key(&pos) {
             self.cells.insert(pos, vec![element]);
@@ -33,21 +34,22 @@ where T: Clone {
     }
 
     pub fn get(&self, pos: (f32, f32), radius: f32) -> Vec<&T> {
-        let w = (self.w / self.resolution) as i32;
-        let h = (self.h / self.resolution) as i32;
+        // let mut tim = utils::Timer::new("LATEX");
+        let w = (self.w / self.resolution) as i16;
+        let h = (self.h / self.resolution) as i16;
 
         let d = pos.0 - radius;
         let s = if d < 0.0 { d - self.resolution as f32 } else { d };
-        let mut cell_start_x = (s / self.resolution) as i32;
-        let mut cell_end_x = ((pos.0 + radius) / self.resolution) as i32;
+        let mut cell_start_x = (s / self.resolution) as i16;
+        let mut cell_end_x = ((pos.0 + radius) / self.resolution) as i16;
         if cell_end_x - cell_start_x > w {
             cell_start_x = 0;
             cell_end_x = w-1;
         }
         let d = pos.1 - radius;
         let s = if d < 0.0 { d - self.resolution as f32 } else { d };
-        let mut cell_start_y = (s / self.resolution) as i32;
-        let mut cell_end_y = ((pos.1 + radius) / self.resolution) as i32;
+        let mut cell_start_y = (s / self.resolution) as i16;
+        let mut cell_end_y = ((pos.1 + radius) / self.resolution) as i16;
         if cell_end_y - cell_start_y > h {
             cell_start_y = 0;
             cell_end_y = h-1;
@@ -56,16 +58,23 @@ where T: Clone {
 
         let mut ret = Vec::with_capacity(50);
 
+        // tim.tick("latex start");
         for x in cell_start_x..cell_end_x+1 {
             for y in cell_start_y..cell_end_y+1 {
                 let x = if x < 0 { x + w } else if x >= w { x - w } else { x };
                 let y = if y < 0 { y + h } else if y >= h { y - h } else { y };
                 match self.cells.get(&(x, y)) {
                     None => {},
-                    Some(v) => ret.extend(v),
+                    Some(v) => ret.push(v),
                 }
             }
         }
-        ret
+        // tim.tick("latex end");
+        // tim.show();
+        flatten(ret)
     }
+}
+
+fn flatten<T>(nested: Vec<&Vec<T>>) -> Vec<&T> {
+    nested.into_iter().flatten().collect()
 }

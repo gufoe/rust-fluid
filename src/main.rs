@@ -5,17 +5,29 @@ use ggez::graphics;
 use latex::Latex2D;
 use ggez::input::keyboard::KeyMods;
 use ggez::input::keyboard::KeyCode;
+
 mod vec;
 mod ag;
 mod utils;
 mod latex;
 
-const AGENT_NUM: usize = 2000;
+const AGENT_NUM: usize = 4000;
 const ST_LEN: usize = 40;
 const BRUSH_SIZE: f32 = 50.0;
+macro_rules! map(
+    { $($key:expr => $value:expr),+ } => {
+        {
+            let mut m = ::std::collections::HashMap::new();
+            $(
+                m.insert($key, $value);
+            )+
+            m
+        }
+     };
+);
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(12).build_global().expect("no thread pool");
+    // rayon::ThreadPoolBuilder::new().num_threads(12).build_global().expect("no thread pool");
 
     // Make a Context and an EventLoop.
     let (mut ctx, mut event_loop) =
@@ -28,7 +40,7 @@ fn main() {
             srgb: true,
         })
        .window_mode(ggez::conf::WindowMode {
-            width: 1600.0,
+            width: 800.0,
             height: 800.0,
             maximized: false,
             fullscreen_type: ggez::conf::FullscreenType::Windowed,
@@ -58,11 +70,15 @@ struct MyGame {
     // Your state here...
     agents: Vec<ag::Agent>,
     frames: u32,
+    frames_start: f64,
     latex: Latex2D<ag::Agent>,
     // pool: scoped_threadpool::Pool,
+    key_mod: KeyCode,
     btn_left: bool,
     btn_right: bool,
     btn_middle: bool,
+    gravity_mod: usize,
+    gravity_f: f32,
     latex_div: f32,
     avg_stats_vel: Vec<f32>,
     avg_stats_range: Vec<f32>,
@@ -93,15 +109,19 @@ impl MyGame {
         }
         let mut game = MyGame {
             frames: 0,
+            frames_start: utils::now(),
             agents,
             latex: Latex2D::new(0.0, 0.0, 0.0),
             btn_left: false,
             btn_right: false,
             btn_middle: false,
+            gravity_mod: 0,
+            gravity_f: 1.0,
             latex_div: 4.0,
             avg_stats_vel: vec![],
             avg_stats_range: vec![],
             fast: 0,
+            key_mod: KeyCode::F,
             // pool: scoped_threadpool::Pool::new(8),
         };
 
@@ -110,18 +130,32 @@ impl MyGame {
         game
     }
 
+    pub fn restart_fps(&mut self) {
+        self.frames = 0;
+        self.frames_start = utils::now();
+    }
+
+    pub fn get_fps(&self) -> f32 {
+        self.frames as f32 / (utils::now() - self.frames_start) as f32
+    }
+
     pub fn adjust_latex_div(&mut self, ctx: &mut Context) {
         let mut min: Option<(f64, f32)> = None;
         let ag = self.agents.clone();
         for ld in 10..70 {
             self.agents = ag.clone();
             self.latex_div = ld as f32;
+            // Boot up
+            self.update(ctx).expect("no update");
+
+            // Measure
             let t_start = utils::now();
-            for _ in 0..2 {
+            for _ in 0..3 {
                 self.update(ctx).expect("no update");
-                self.frames-= 1;
             }
             let t_diff = utils::now() - t_start;
+
+            // Compare
             println!("ld {}: {:.4}", ld, t_diff);
             if !min.is_none() && min.unwrap().0 < t_diff {
                 break
@@ -131,8 +165,9 @@ impl MyGame {
             }
         }
         println!("best latex div: {:?}", min.unwrap());
-        self.agents = ag.clone();
+        self.agents = ag;
         self.latex_div = min.unwrap().1 + 6.0;
+        self.restart_fps();
     }
 
     pub fn update_latex(&mut self, w: f32, h: f32) {
@@ -147,33 +182,57 @@ impl MyGame {
 impl EventHandler for MyGame {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         let (w, h) = graphics::drawable_size(ctx);
-        for _ in 0..(self.fast*self.fast*10 + 1) {
-            self.update_latex(w, h);
+        let pos = ggez::input::mouse::position(ctx);
 
-            let dx = (self.frames as f32 * 0.001).cos() * 0.4;
-            let dy = (self.frames as f32 * 0.001).sin() * 0.4;
+        for _ in 0..(self.fast*2).max(1) {
+            let mut tim = utils::Timer::new("UPDATE");
+            self.update_latex(w, h);
+            tim.tick("latex updated");
+
+            let _dx = (self.frames as f32 * 0.03).cos() * 0.3;
+            let _dy = (self.frames as f32 * 0.03).sin() * 0.3;
 
             let update = ag::Update {
                 w,
                 h,
                 agents: &self.latex,
-                gravity: vec![
-                vec::Vec::new_from(w*0.5, h*0.5),
-                vec::Vec::new_from(w*(0.5 + dx), h*(0.5 + dy)),
-                ],
+                gravity_f: self.gravity_f,
+                gravity: match self.gravity_mod {
+                    1 => vec![
+                        vec::Vec::new_from(w*0.5, h*0.5),
+                    ],
+                    2 => vec![
+                        vec::Vec::new_from(w*0.5, h*0.5),
+                        vec::Vec::new_from(w*(0.5 + _dx), h*(0.5 + _dy)),
+                    ],
+                    3 => vec![
+                        vec::Vec::new_from(w*0.5, h*0.5),
+                        vec::Vec::new_from(pos.x, pos.y),
+                    ],
+                    4 => vec![
+                        vec::Vec::new_from(pos.x, pos.y),
+                    ],
+                    _ => vec![]
+
+                 },
             };
 
-            let _t0 = utils::now();
             self.agents.par_iter_mut().for_each(|x| x.update(&update));
+            self.frames += 1;
+
+            tim.tick("agents updated");
+            tim.show();
         }
-        self.update_latex(w, h);
         // println!("update:  {:.3}", utils::now() - _t0);
         // self.agents.remove(0);
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let mut tim = utils::Timer::new("DRAW");
+
         let (w, h) = graphics::drawable_size(ctx);
+
         // if self.frames == 1 {
         // }
         // graphics::clear(ctx, graphics::BLACK);
@@ -182,7 +241,7 @@ impl EventHandler for MyGame {
         // Draw bbackground
         let mut mb_bg = &mut graphics::MeshBuilder::new();
         mb_bg.rectangle(graphics::DrawMode::fill(), graphics::Rect::new(0.0, 0.0, w, h),
-                graphics::Color::new(0.0, 0.0, 0.0, 1.62));
+                graphics::Color::new(0.0, 0.0, 0.0, 0.97));
 
         // Get stats
         let max_speed: f32 = self.agents.par_iter()
@@ -192,6 +251,10 @@ impl EventHandler for MyGame {
             .fold(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x.color))
             .reduce(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x));
         utils::softmax_fast(&mut col);
+
+        tim.tick("done stats done");
+
+
         let mut stats_mesh = ggez::graphics::MeshBuilder::new();
         let mut tot = 0.0;
         let width = 1000.0;
@@ -211,6 +274,9 @@ impl EventHandler for MyGame {
             tot+= col[i];
         }
 
+
+        tim.tick("draw stats done");
+
         self.avg_stats_vel.push(max_speed);
         if self.avg_stats_vel.len() > ST_LEN { self.avg_stats_vel.remove(0); }
         let max_speed = utils::avg(&self.avg_stats_vel);
@@ -222,10 +288,16 @@ impl EventHandler for MyGame {
         if self.avg_stats_range.len() > ST_LEN { self.avg_stats_range.remove(0); }
         let max_range = utils::avg(&self.avg_stats_range);
 
+        tim.tick("drew stats");
+
+
         // Draw agents
         let _t0 = utils::now();
         let mut mb = &mut graphics::MeshBuilder::new();
         self.agents.iter().for_each(|x| x.draw(ctx, &mut mb, &mut mb_bg, max_speed, max_range));
+        tim.tick("drew agents");
+
+
 
         // Draw background and foreground
         let mb_bg = mb_bg.build(ctx).unwrap();
@@ -240,15 +312,19 @@ impl EventHandler for MyGame {
         // println!("build:      {:.3}", utils::now() - _t0);
 
         // let _t0 = utils::now();
+        tim.tick("drawed bg and fg");
+
+
         graphics::present(ctx)?;
+        tim.tick("presented");
         // println!("present:    {:.3}", utils::now() - _t0);
 
-        self.frames += 1;
-        if (self.frames % 30) == 0 {
-            println!("FPS: {:.2}", ggez::timer::fps(ctx));
+        print!("{}[2J", 27 as char);
+        println!("FPS:  DRAW = {:.2}  UPDATE = {:.2}", ggez::timer::fps(ctx), self.get_fps());
+        tim.show();
+        if utils::now() > self.frames_start + 1.0 {
+            self.restart_fps();
         }
-
-        ggez::timer::yield_now();
         Ok(())
     }
     fn mouse_motion_event(
@@ -329,9 +405,47 @@ impl EventHandler for MyGame {
             100
         };
         match key {
+            KeyCode::F |
+            KeyCode::A |
+            KeyCode::R |
+            KeyCode::B |
+            KeyCode::G |
+            KeyCode::Z |
+            KeyCode::X |
+            KeyCode::Escape => {
+                self.key_mod = key;
+            },
+            _  => { }
+        }
+
+        let input_num = map!{
+            KeyCode::Key1 => 1,
+            KeyCode::Key2 => 2,
+            KeyCode::Key3 => 3,
+            KeyCode::Key4 => 4,
+            KeyCode::Key5 => 5,
+            KeyCode::Key6 => 6,
+            KeyCode::Key7 => 7,
+            KeyCode::Key8 => 8,
+            KeyCode::Key9 => 9,
+            KeyCode::Key0 => 0
+        };
+        let input_num = input_num.get(&key);
+
+        println!("keymod: {:?}, input_num: {:?}", self.key_mod, input_num);
+
+        match self.key_mod {
             // Quit if Shift+Ctrl+Q is pressed.
             KeyCode::Escape => {
                 event::quit(_ctx);
+            }
+            KeyCode::A => {
+                println!("making one aggressive");
+                for _ in 0..rounds {
+                    let s = self.agents.len();
+                    self.agents.get_mut(utils::rand_usize(s)).unwrap().color = [1.0, 0.0, 0.0];
+                }
+
             }
             KeyCode::R => {
                 println!("making one aggressive");
@@ -359,9 +473,30 @@ impl EventHandler for MyGame {
             }
             KeyCode::F => {
                 println!("making fast");
-                self.fast+= 1;
-                self.fast%= 3;
-
+                match input_num {
+                    Some(f) => {
+                        self.fast = *f;
+                    },
+                    _ => {}
+                }
+            }
+            KeyCode::Z => {
+                println!("gravity change");
+                match input_num {
+                    Some(f) => {
+                        self.gravity_mod = *f;
+                    },
+                    _ => {}
+                }
+            }
+            KeyCode::X => {
+                println!("gravity force");
+                match input_num {
+                    Some(f) => {
+                        self.gravity_f = *f as f32;
+                    },
+                    _ => {}
+                }
             }
             _ => (),
         }
