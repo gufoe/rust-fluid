@@ -7,10 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ggez = "0.5"
+ggez = "0.6"
 rand = "*"
 rayon = "1.1"
-smallvec = "0.6"
+smallvec = "1.7"
 chashmap = "*"
-hashbrown = "0.6"
-generator = "0.6"
+hashbrown = "0.11"
+generator = "0.7"
