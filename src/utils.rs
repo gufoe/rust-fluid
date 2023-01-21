@@ -18,7 +18,7 @@ impl Timer {
     }
     pub fn tick(&mut self, label: &str) -> (String, f64) {
         self.times.push((label.to_string(), now()));
-        self.times.get(self.times.len()-2).unwrap_or(&("start".to_string(), 0.0)).clone()
+        self.times.get(self.times.len().max(2)-2).unwrap_or(&("start".to_string(), 0.0)).clone()
     }
     pub fn diff_or_0(&self, a: usize, b: usize) -> f64 {
         let a = self.times.get(a).unwrap_or(&("start".to_string(), 0.0)).1;
@@ -27,7 +27,7 @@ impl Timer {
     }
     pub fn show(&self) {
         for i in 0..self.times.len() {
-            println!("{:>30}: {:.9}", self.times[i].0, self.diff_or_0(i, i-1));
+            println!("{:>30}: {:.9}", self.times[i].0, self.diff_or_0(i, i.max(1)-1));
         }
         println!("{:>30}: {:.9}", "total", self.diff_or_0(self.times.len()-1, 0));
     }
