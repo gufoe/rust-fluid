@@ -1,5 +1,5 @@
 use latex::Latex2D;
-use nannou::prelude::*;
+use nannou::{prelude::*, state::Mouse};
 use rayon::prelude::*;
 
 mod ag;
@@ -7,10 +7,10 @@ mod latex;
 mod utils;
 mod vec;
 
-const AGENT_NUM: usize = 10000;
+const AGENT_NUM: usize = 6000;
 const ST_LEN: usize = 40;
 #[allow(dead_code)]
-const BRUSH_SIZE: f32 = 50.0;
+const BRUSH_SIZE: f32 = 200.0;
 #[allow(unused)]
 macro_rules! map(
     { $($key:expr => $value:expr),+ } => {
@@ -23,49 +23,6 @@ macro_rules! map(
         }
      };
 );
-
-// fn main() {
-//     // rayon::ThreadPoolBuilder::new().num_threads(12).build_global().expect("no thread pool");
-
-//     // Make a Context and an EventLoop.
-//     let (mut ctx, mut event_loop) = ContextBuilder::new("game_name", "author_name")
-//         .window_setup(ggez::conf::WindowSetup {
-//             title: "An easy, good game".to_owned(),
-//             samples: ggez::conf::NumSamples::Zero,
-//             vsync: true,
-//             icon: "".to_owned(),
-//             srgb: true,
-//         })
-//         .window_mode(ggez::conf::WindowMode {
-//             width: 1000.0,
-//             height: 800.0,
-//             maximized: false,
-//             fullscreen_type: ggez::conf::FullscreenType::Windowed,
-//             borderless: false,
-//             min_width: 0.0,
-//             max_width: 0.0,
-//             min_height: 0.0,
-//             max_height: 0.0,
-//             resizable: false,
-//             transparent: false,
-//             visible: true,
-//             resize_on_scale_factor_change: true,
-//             logical_size: true,
-//         })
-//         .build()
-//         .expect("cannot make window");
-
-//     // Create an instance of your event handler.
-//     // Usually, you should provide it with the Context object
-//     // so it can load resources like images during setup.
-//     let mut my_game = MyGame::new(&mut ctx);
-
-//     // Run!
-//     match event::run(&mut ctx, &mut event_loop, &mut my_game) {
-//         Ok(_) => println!("Exited cleanly."),
-//         Err(e) => println!("Error occured: {}", e),
-//     }
-// }#
 fn main() {
     nannou::app(model).update(update).simple_window(view).run();
 }
@@ -89,12 +46,13 @@ struct MyGame {
     // pool: scoped_threadpool::Pool,
     #[allow(dead_code)]
     key_mod: String,
-    #[allow(dead_code)]
-    btn_left: bool,
-    #[allow(dead_code)]
-    btn_right: bool,
-    #[allow(dead_code)]
-    btn_middle: bool,
+    // #[allow(dead_code)]
+    // btn_left: bool,
+    // #[allow(dead_code)]
+    // btn_right: bool,
+    // #[allow(dead_code)]
+    // btn_middle: bool,
+    prev_mouse: Option<Mouse>,
     gravity_mod: usize,
     gravity_f: f32,
     latex_div: f32,
@@ -111,14 +69,12 @@ impl MyGame {
             frames_start: utils::now(),
             agents: vec![],
             latex: Latex2D::new(0.0, 0.0, 0.0),
-            btn_left: false,
-            btn_right: false,
-            btn_middle: false,
             gravity_mod: 0,
             gravity_f: 1.0,
             latex_div: 4.0,
             avg_stats_vel: vec![],
             avg_stats_range: vec![],
+            prev_mouse: None,
             fast: 0,
             key_mod: "F".to_string(), // TODO: KeyCode::F,
         };
@@ -221,8 +177,12 @@ impl MyGame {
         if self.agents.is_empty() {
             self.init_agents(app)
         }
+        self.mouse_motion_event(app);
+        self.prev_mouse = Some(app.mouse.clone());
+
         let (w, h) = app.window_rect().w_h();
-        let pos = Vec2::new(0.0, 0.0); // TODO: ggez::input::mouse::position(ctx);
+        let pos = Vec2::new(app.mouse.x, app.mouse.y);
+        app.mouse.buttons.left();
 
         for _ in 0..(self.fast * 2).max(1) {
             let mut tim = utils::Timer::new("UPDATE");
@@ -361,6 +321,51 @@ impl MyGame {
         }
 
         draw.to_frame(app, &frame).unwrap();
+    }
+
+    fn mouse_motion_event(&mut self, app: &App) {
+        if self.prev_mouse.is_none() {
+            return;
+        }
+        let prev = self.prev_mouse.clone().unwrap();
+        let p = vec::Vec::new_from(
+            app.mouse.x + app.window_rect().w() / 2.0,
+            app.mouse.y + app.window_rect().h() / 2.0,
+        );
+
+        let d = vec::Vec::new_from(app.mouse.x - prev.x, app.mouse.y - prev.y);
+
+        let radius = BRUSH_SIZE;
+        if app.mouse.buttons.left().is_down() {
+            let agents: Vec<usize> = self
+                .latex
+                .get(
+                    (
+                        p.x, // / 2.,
+                        p.y, // / 2.,
+                    ),
+                    radius,
+                )
+                .iter()
+                .map(|x| x.id)
+                .collect();
+            // let mut i: Vec<usize> = Vec::new();
+            // let mut ids = std::collections::HashSet::new();
+            agents.iter().for_each(|id| {
+                // ids.insert(id);
+                let x = self.agents.get_mut(*id).expect("element in latex too much");
+                let dist = x.pos.dist_mod(&p, self.latex.w, self.latex.h);
+                if dist > radius {
+                    return;
+                }
+                let mut d = d.clone();
+                // d.mul(2.0);
+                d.mul((1.0 - dist / radius) * 0.1);
+                x.vel.add(&d);
+                // x.pos.add(&d);
+            });
+            // self.agents.retain(|a| !ids.contains(&a.id));
+        }
     }
 }
 // impl EventHandler for MyGame {
