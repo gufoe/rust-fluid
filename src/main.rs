@@ -114,7 +114,7 @@ impl MyGame {
     pub fn adjust_latex_div(&mut self, app: &App) {
         let mut min: Option<(f64, f32)> = None;
         let ag = self.agents.clone();
-        for ld in 10..70 {
+        for ld in 2..70 {
             self.agents = ag.clone();
             self.latex_div = ld as f32;
             // Boot up
@@ -128,7 +128,7 @@ impl MyGame {
             let t_diff = utils::now() - t_start;
 
             // Compare
-            println!("ld {}: {:.4}", ld, t_diff);
+            println!("adj_latex: ld {}: {:.4}", ld, t_diff);
             if !min.is_none() && min.unwrap().0 < t_diff {
                 break;
             }
@@ -136,7 +136,7 @@ impl MyGame {
                 min = Some((t_diff, ld as f32));
             }
         }
-        println!("best latex div: {:?}", min.unwrap());
+        println!("adj_latex: best latex div: {:?}", min.unwrap());
         self.agents = ag;
         self.latex_div = min.unwrap().1 + 6.0;
         self.restart_fps();
@@ -243,37 +243,37 @@ impl MyGame {
         //     graphics::Color::new(0.0, 0.0, 0.0, 0.97),
         // );
 
-        let mut col: [f32; 3] = self
-            .agents
-            .par_iter()
-            .fold(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x.color))
-            .reduce(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x));
-        utils::softmax_fast(&mut col);
+        // let mut col: [f32; 3] = self
+        //     .agents
+        //     .par_iter()
+        //     .fold(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x.color))
+        //     .reduce(|| [0.0, 0.0, 0.0], |v, x| utils::sum(&v, &x));
+        // utils::softmax_fast(&mut col);
 
         tim.tick("done stats done");
 
         // let mut stats_mesh = ggez::graphics::MeshBuilder::new();
-        let mut tot = 0.0;
-        let width = 1000.0;
-        let height = 20.0;
-        for i in 0..3 {
-            // stats_mesh.rectangle(
-            //     graphics::DrawMode::fill(),
-            //     ggez::graphics::Rect::new(10.0 + tot * width, 10.0, col[i] * width, height),
-            //     graphics::Color::new(),
-            // );
+        // let mut tot = 0.0;
+        // let width = 1000.0;
+        // let height = 20.0;
+        // for i in 0..3 {
+        //     // stats_mesh.rectangle(
+        //     //     graphics::DrawMode::fill(),
+        //     //     ggez::graphics::Rect::new(10.0 + tot * width, 10.0, col[i] * width, height),
+        //     //     graphics::Color::new(),
+        //     // );
 
-            draw.rect()
-                .color(rgba(
-                    if i == 0 { 1.0 } else { 0.0 },
-                    if i == 1 { 1.0 } else { 0.0 },
-                    if i == 2 { 1.0 } else { 0.0 },
-                    1.0,
-                ))
-                .x_y(10.0 + tot * width, 10.0)
-                .w_h(col[i] * width, height);
-            tot += col[i];
-        }
+        //     draw.rect()
+        //         .color(rgba(
+        //             if i == 0 { 1.0 } else { 0.0 },
+        //             if i == 1 { 1.0 } else { 0.0 },
+        //             if i == 2 { 1.0 } else { 0.0 },
+        //             1.0,
+        //         ))
+        //         .x_y(10.0 + tot * width, 10.0)
+        //         .w_h(col[i] * width, height);
+        //     tot += col[i];
+        // }
 
         tim.tick("draw stats done");
         let max_speed = utils::avg(&self.avg_stats_vel);
