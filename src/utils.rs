@@ -16,7 +16,7 @@ impl Timer {
     pub fn tick(&mut self, label: &str) -> (String, f64) {
         self.times.push((label.to_string(), now()));
         self.times
-            .get(self.times.len() - 2)
+            .get(self.times.len().max(2) - 2)
             .unwrap_or(&("start".to_string(), 0.0))
             .clone()
     }
@@ -27,7 +27,11 @@ impl Timer {
     }
     pub fn show(&self) {
         for i in 0..self.times.len() {
-            println!("{:>30}: {:.9}", self.times[i].0, self.diff_or_0(i, i - 1));
+            println!(
+                "{:>30}: {:.9}",
+                self.times[i].0,
+                self.diff_or_0(i, i.max(1) - 1)
+            );
         }
         println!(
             "{:>30}: {:.9}",
@@ -74,6 +78,7 @@ pub fn now() -> f64 {
 pub fn avg(numbers: &[f32]) -> f32 {
     numbers.iter().sum::<f32>() / numbers.len() as f32
 }
+#[allow(dead_code)]
 pub fn vavg(a: &mut [f32], b: &[f32], x: f32) {
     for i in 0..a.len() {
         a[i] += b[i] * x;
@@ -88,6 +93,7 @@ pub fn eavg(a: &mut f32, b: f32, x: f32) {
     *a /= 1.0 + x;
 }
 
+#[allow(dead_code)]
 pub fn softmax(v: &mut [f32]) {
     norm(v);
     let sum = v.iter().fold(0.0, |sum, &val| sum + val);
@@ -126,6 +132,7 @@ pub fn norm(v: &mut [f32]) {
         *i /= n;
     }
 }
+#[allow(dead_code)]
 pub fn norm_2(v: &mut [f32]) {
     let mut max = -9999999999.0;
     let mut min = 9999999999.0;

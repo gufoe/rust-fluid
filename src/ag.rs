@@ -1,8 +1,11 @@
-use crate::vec;
+use nannou::prelude::rgba;
+use nannou::Draw;
+
 use crate::utils;
+use crate::vec;
 
 #[derive(Clone)]
-pub struct Update <'a> {
+pub struct Update<'a> {
     pub w: f32,
     pub h: f32,
     pub gravity_f: f32,
@@ -48,7 +51,6 @@ impl Agent {
             // drag: utils::rand_float(0.0001, 0.01),
             // max_acc: utils::rand_float(0.01, 0.4),
             // weirdness: utils::rand_float(0.1, 15.5),
-
             radius: 2.0,
             view_range: 17.0,
             pos_w: -0.1,
@@ -61,19 +63,23 @@ impl Agent {
         a
     }
 
-    fn red (&self) -> f32 {
+    #[allow(dead_code)]
+    fn red(&self) -> f32 {
         // self.color[0]
         self.color[0] / (self.color[1] + self.color[2]).max(0.2)
     }
-    fn green (&self) -> f32 {
+    #[allow(dead_code)]
+    fn green(&self) -> f32 {
         // self.color[1]
         self.color[1] / (self.color[0] + self.color[2]).max(0.2)
     }
-    fn blue (&self) -> f32 {
+    #[allow(dead_code)]
+    fn blue(&self) -> f32 {
         // self.color[2]
         self.color[2] / (self.color[0] + self.color[1]).max(0.2)
     }
-    fn white (&self) -> f32 {
+    #[allow(dead_code)]
+    fn white(&self) -> f32 {
         (self.color[0] + self.color[1] + self.color[2]) / 3.0
     }
 
@@ -88,7 +94,9 @@ impl Agent {
         if self.id % 12 > 0 {
             let mut closest: Option<(usize, f32)> = None;
             in_range_incl.iter().enumerate().for_each(|(i, x)| {
-                if x.id == self.id { return; }
+                if x.id == self.id {
+                    return;
+                }
                 let d = self.pos.dist_mod(&x.pos, update.w, update.h);
                 if closest.is_none() || closest.unwrap().1 < d {
                     closest = Some((i, d));
@@ -103,9 +111,11 @@ impl Agent {
 
             let mut closest: Option<(usize, usize)> = None;
             in_range_incl.iter().enumerate().for_each(|(i, x)| {
-                if x.id == self.id { return; }
-                if closest.is_none() || closest.unwrap().1 > x.id%12 {
-                    closest = Some((i, x.id%12));
+                if x.id == self.id {
+                    return;
+                }
+                if closest.is_none() || closest.unwrap().1 > x.id % 12 {
+                    closest = Some((i, x.id % 12));
                 }
             });
 
@@ -123,17 +133,16 @@ impl Agent {
         //     self.id != x.id
         // });
 
-            self.vel_w = 0.1 + self.color[0] * 2.0;
-            self.pos_w = 0.1 + self.color[1] * 0.8;
+        self.vel_w = 0.1 + self.color[0] * 2.0;
+        self.pos_w = 0.1 + self.color[1] * 0.8;
 
-            // self.pos_w = (self.pos_w / 100.0).max(0.01);
-            // self.vel_w = (self.vel_w / 100.0).max(0.01);
-            self.view_range = (10.0 + 40.0 * self.color[2]) * 0.5;
-            self.pos_w*= -1.0;
-            self.drag = self.color[0] * 0.001 + self.color[2] * 0.01;
+        // self.pos_w = (self.pos_w / 100.0).max(0.01);
+        // self.vel_w = (self.vel_w / 100.0).max(0.01);
+        self.view_range = (10.0 + 40.0 * self.color[2]) * 0.5;
+        self.pos_w *= -1.0;
+        self.drag = self.color[0] * 0.001 + self.color[2] * 0.01;
 
         // tim.tick("retain in range");
-
 
         if !in_range_incl.is_empty() {
             // let mut entour = [0.0,0.0,0.0];
@@ -164,7 +173,6 @@ impl Agent {
             //     utils::eavg(&mut self.color[1], entour[1], 0.01);
             // }
 
-
             // utils::norm(&mut self.color);
             // {
             //     self.pos_w = 0.2 + self.color[1] * 4.0;
@@ -177,14 +185,13 @@ impl Agent {
             //     self.drag = self.color[0] * 0.01 + self.color[1] * 0.001;
             // }
 
-
             let mut avg_vel = vec::Vec::new();
             in_range_incl.iter().for_each(|x| {
                 let mut d = self.pos.dist_mod(&x.pos, update.w, update.h);
-                d/= self.view_range;
+                d /= self.view_range;
                 // d+= 1.0;
                 // d*= 1.0;
-                avg_vel.sub(&self.vel.clone().sub(&x.vel).mul(1.0-d));
+                avg_vel.sub(&self.vel.clone().sub(&x.vel).mul(1.0 - d));
                 // avg_vel.sub(self.vel.clone().sub(&x.vel).mul(1.0/(d.powi(2))));
             });
             avg_vel.div(in_range_incl.len() as f32);
@@ -202,10 +209,11 @@ impl Agent {
 
             avg_vel.norm(1.0);
             avg_pos.norm(1.0);
-            let diff = avg_vel.mul(self.vel_w)
-            .add(avg_pos.mul(self.pos_w))
-            .div(self.pos_w.abs() + self.vel_w.abs())
-            .mul(self.weirdness);
+            let diff = avg_vel
+                .mul(self.vel_w)
+                .add(avg_pos.mul(self.pos_w))
+                .div(self.pos_w.abs() + self.vel_w.abs())
+                .mul(self.weirdness);
 
             // let mut diff = avg_pos;
             // diff.limit(self.max_acc);
@@ -216,14 +224,13 @@ impl Agent {
 
         // self.vel.limit(10.0);
         self.pos.add(&self.vel);
-        self.vel.mul(1.0-self.drag);
-
+        self.vel.mul(1.0 - self.drag);
 
         for mut g in update.gravity.iter().cloned() {
             // let mut g = vec::Vec::new_from(update.w, update.h);
             g.sub(&self.pos);
             let mag = g.mag();
-            g.mul(update.gravity_f.powf(1.4)*0.2/(100.0 + mag*mag));
+            g.mul(update.gravity_f.powf(1.4) * 0.2 / (100.0 + mag * mag));
             self.vel.add(&g);
         }
         // if self.pos.y > update.h {
@@ -231,10 +238,18 @@ impl Agent {
         //     self.pos.y = update.h - (update.h - self.pos.y).abs();
         // }
 
-        while self.pos.x > update.w { self.pos.x-= update.w }
-        while self.pos.x < 0.0 { self.pos.x+= update.w }
-        while self.pos.y > update.h { self.pos.y-= update.h }
-        while self.pos.y < 0.0 { self.pos.y+= update.h }
+        while self.pos.x > update.w {
+            self.pos.x -= update.w
+        }
+        while self.pos.x < 0.0 {
+            self.pos.x += update.w
+        }
+        while self.pos.y > update.h {
+            self.pos.y -= update.h
+        }
+        while self.pos.y < 0.0 {
+            self.pos.y += update.h
+        }
 
         self.s_vel = self.vel.mag();
         self.s_in_range = in_range_incl.len();
@@ -242,19 +257,12 @@ impl Agent {
         // tim.show();
     }
 
-    pub fn draw(&self, _ctx: &mut ggez::Context,
-                mb: &mut ggez::graphics::MeshBuilder,
-                _mb_bg: &mut ggez::graphics::MeshBuilder,
-                max_vel: f32,
-                max_range: f32) {
-        use ggez::graphics;
-
-
+    pub fn draw(&self, draw: &Draw, max_vel: f32, _max_range: f32) {
         let mut g = self.s_vel as f32 / max_vel * 1.5;
-        let mut q = 1.0f32;// self.s_in_range as f32 / max_range;
+        let mut q = 1.0f32; // self.s_in_range as f32 / max_range;
 
-        g = ((g-0.0)*1.0).max(0.0);
-        q = ((q-0.0)*1.0).max(0.0);
+        g = ((g - 0.0) * 1.0).max(0.0);
+        q = ((q - 0.0) * 1.0).max(0.0);
         // let g = g;
         // let q = 0.0;
 
@@ -262,21 +270,19 @@ impl Agent {
         //     q,
         //     g,
         //     q*g, (q*g).max(0.1));
-        let col = graphics::Color::new(
-            self.color[0],
-            self.color[1],
-            self.color[2],
-            (q + g) / 2.0);
+        let col = rgba(self.color[0], self.color[1], self.color[2], (q + g) / 2.0);
         // let col = graphics::Color::new(1.0,1.0,1.0, (q*g).max(0.4));
-        mb.circle(
-            graphics::DrawMode::fill(),
-            ggez::nalgebra::Point2::new(self.pos.x, self.pos.y),
-            2.8,
-            1.0,
-            // graphics::Color::new(q/2.0+0.1, g, q*g, (g*q).max(0.1)),
-            col
-            // graphics::Color::new(g, 1.0 - g * 0.9, q, 0.5+g*0.5),
-        );
+        draw.ellipse()
+            .color(col)
+            .x_y(self.pos.x, self.pos.y)
+            .w_h(10.0, 10.0)
+            .radius(2.8);
+
+        //     2.8,
+        //     1.0,
+        //     // graphics::Color::new(q/2.0+0.1, g, q*g, (g*q).max(0.1)),
+        //     col, // graphics::Color::new(g, 1.0 - g * 0.9, q, 0.5+g*0.5),
+        // );
         // _mb_bg.circle(
         //     graphics::DrawMode::fill(),
         //     ggez::nalgebra::Point2::new(self.pos.x, self.pos.y),
@@ -285,7 +291,5 @@ impl Agent {
         //     col,
         //     // graphics::Color::new(g, 1.0 - g * 0.9, q, 0.5+g*0.5),
         // );
-
     }
-
 }
