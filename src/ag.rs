@@ -1,10 +1,60 @@
+use std::cmp::Ordering;
+
 use nannou::prelude::hsla;
 use nannou::prelude::rgba;
 use nannou::wgpu::Color;
 use nannou::Draw;
+use rand::random;
 
 use crate::utils;
 use crate::vec;
+
+const MAX_DIST: f32 = 400.0;
+const WANTED_DP_LEN: f32 = 25.0;
+const KEEP: usize = 0;
+// let rules = [
+//     [1.0, -0.5, 0.0],
+//     [0.0, 1.0, -0.5],
+//     [-0.5, 0.0, 1.0],
+// ];
+// const RULES: [[f32; 2]; 2] = [[1.0, 0.5], [-1.0, 1.0]];
+// const RULES: [[f32; 2]; 2] = [[1.0, 1.0], [-1.0, 1.0]];
+// const RULES: [[f32; 1]; 1] = [[1.0]];
+// let rules = [
+//     [1.0,1.1,-0.2,-0.2],
+//     [-0.2,1.0,1.1,-0.2],
+//     [-0.2,-0.2,1.0,1.1],
+//     [1.1,-0.2,-0.2,1.0],
+// ];
+const RULES: [[f32; 6]; 6] = [
+    [0.9,0.9, 0.0, 0.0, -0.1, 0.0],
+    [-0.1, 0.9,0.9, 0.0, 0.0, 0.0],
+    [-0.2, -0.1, 0.9,0.9, 0.0, 0.0],
+    [-0.2, -0.2, -0.1, 0.9,1.2, 0.0],
+    [-0.2, -0.2, -0.2, -0.3, 2.4, 0.0],
+    [-1., -1., -1., -1., -1., 0.0],
+];
+// const RULES: [[f32; 4]; 4] = [
+//     [1.0, 0.0, 0.0, -1.0],
+//     [0.0, 1.0, 0.5, 0.0],
+//     [0.0, 0.0, 1.0, 0.5],
+//     [0.5, 0.0, 0.0, 1.0],
+// ];
+// const RULES: [[f32; 4]; 4] = [
+//     [2.0, 1.0, -1.0, 0.0],
+//     [-1.0, 2.0, 1.0, -1.0],
+//     [1.0, -1.0, 2.0, 1.0],
+//     [0.0, 1.0, -1.0, 2.0],
+// ];
+
+// const rules = [
+//   [1.0, 0.0, random::<f32>()*2.0-1.0, 0.0, 0.0, 0.0, ],
+//   [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, ],
+//   [random::<f32>()*2.0-1.0, 0.0, 1.0, 0.0, random::<f32>()*2.0-1.0, 0.0, ],
+//   [0.0, random::<f32>()*2.0-1.0, 0.0, 1.0, 0.0, 0.0, ],
+//   [0.0, 0.0, 0.0, 0.0, 1.0, 0.5, ],
+//   [-1.0, -1.0, -1.0, -1.0, -1.0, 0.2 ],
+// ];
 
 #[derive(Clone)]
 pub struct Update<'a> {
@@ -34,15 +84,15 @@ pub struct Agent {
 
 impl Agent {
     pub fn new(id: usize, pos: vec::Vec, vel: vec::Vec) -> Agent {
-        let mut a = Agent {
+        let a = Agent {
             id,
             pos,
             vel,
             s_vel: 0.0,
             s_in_range: 0,
-            color: 
+            color:  //1.0,
                 // 0.1,0.1,0.1,
-                utils::rand_float(0.0, 360.0),
+                utils::rand_int(RULES.len() as u32) as f32 * (360 as f32/RULES.len() as f32),
                 // utils::rand_float(0.0, 1.0),
                 // utils::rand_float(0.0, 1.0),
             // ],
@@ -54,11 +104,11 @@ impl Agent {
             // max_acc: utils::rand_float(0.01, 0.4),
             // weirdness: utils::rand_float(0.1, 15.5),
             radius: 2.0,
-            view_range: 17.0,
+            view_range: 200.0,
             pos_w: -0.1,
             vel_w: 1.0,
-            drag: 0.5,
-            max_acc: 1.0,
+            drag: 0.2,
+            max_acc: 0.14,
             weirdness: 1.0,
         };
         // utils::norm(&mut a.color);
@@ -66,58 +116,118 @@ impl Agent {
     }
 
     pub fn new_update(&mut self, update: &Update) {
-        let rules = [
-            [1.0, 0.5, 0.0, -1.1],
-            [-1.1, 1.0, 0.5, 0.0],
-            [0.0, -1.1, 1.0, 0.5],
-            [0.5, 0.0, -1.1, 1.0],
-        ];
-
         let color_friendlyness = |b: f32| -> f32 {
             let a = self.color;
-            let a = (a / (360 / rules.len()) as f32).floor() as usize;
-            let b = (b / (360 / rules.len()) as f32).floor() as usize;
-            return rules[a][b];
+            let ai = (a / (360 / RULES.len()) as f32).floor() as usize;
+            let bi = (b / (360 / RULES.len()) as f32).floor() as usize;
+            // println!("xx {}={} +  {}={} = {}", a, ai, b, bi, RULES[ai][bi]);
+            return RULES[ai][bi];
         };
 
-
+        let fix_pos = |mut p: vec::Vec| -> vec::Vec {
+            let a = self.pos;
+            if (p.x - a.x).abs() > (p.x - a.x + update.w).abs() {
+                p.x += update.w;
+            } else if (p.x - a.x).abs() > (p.x - a.x - update.w).abs() {
+                p.x -= update.w;
+            }
+            if (p.y - a.y).abs() > (p.y - a.y + update.h).abs() {
+                p.y += update.h;
+            } else if (p.y - a.y).abs() > (p.y - a.y - update.h).abs() {
+                p.x -= update.h;
+            }
+            return p;
+        };
         // Items within latex distance
         let neighbours = update.agents.get((self.pos.x, self.pos.y), self.view_range);
 
+        let mut neighbours: Vec<(f32, &Agent)> = neighbours
+            .into_iter()
+            .map(|n| (fix_pos(n.pos).squared_dist(&self.pos), n))
+            .collect();
+
+        let mut top_keep: Vec<(f32, &Agent)> = vec![];
+        while !neighbours.is_empty() {
+            let n = neighbours.pop();
+
+            if let Some(n) = n {
+                if n.1.id == self.id {
+                    continue;
+                }
+                // println!("xx {:?}", top_keep.iter().map(|x| x.0).collect::<Vec<_>>());
+                let mut better = if top_keep.is_empty() { Some(0) } else { None };
+                for i in 0..top_keep.len() {
+                    if top_keep[i].0 > n.0 {
+                        better = Some(i);
+                        break;
+                    }
+                }
+                if let Some(better) = better {
+                    // println!("xx insert {} = {}", n.0, better);
+                    if KEEP == 0 {
+                        top_keep.push(n);
+                    } else if better <= KEEP.max(1) - 1 {
+                        top_keep.insert(better, n);
+                        if top_keep.len() > KEEP {
+                            top_keep.pop();
+                        }
+                    }
+                }
+            }
+        }
+
+        // println!(
+        //     "xx  final {:?}",
+        //     top_keep.iter().map(|x| x.0).collect::<Vec<_>>()
+        // );
+
         let mut wanted_dp_sum = vec::Vec::new();
         // let draw_vec = None;
-        for n in neighbours {
-            if n.id == self.id {
+        let mut adds = 0;
+        for (dist, n) in top_keep {
+            let distance = dist.sqrt();
+            if distance > MAX_DIST {
                 continue;
             }
-            let mut f = color_friendlyness( n.color);
-            if f == 0.0 {
-                continue;
-            }
-            let max_dist = 3000.0;
-            let wanted_dp_len = 10.0;
+            // for (_dist, n) in neighbours {
+            let f = color_friendlyness(n.color);
+            // println!("xx fr {} {:.2}", f, distance / MAX_DIST);
 
-            let mut dp = n.pos.clone();
-            dp.sub( &self.pos);
-
-            if dp.mag() > max_dist {
-                continue;
-            }
-            f *= 1.0 - dp.mag() / max_dist;
             if f == 0.0 {
                 continue;
             }
 
+            let n_pos = fix_pos(n.pos);
+
+            let mut dp = n_pos.clone();
+            dp.sub(&self.pos);
+
+            // This is the position difference normalized
             let mut dir = dp.clone();
-            dir.div(dp.mag());
+            dir.div(distance);
 
-            let delta = wanted_dp_len - dp.mag();
-            wanted_dp_sum.add(dir.clone().mul( -delta * f));
+            if f > 0.0 {
+                let delta = distance - WANTED_DP_LEN;
+                wanted_dp_sum.add(dir.clone().mul(0.7 * delta * f * (1.0 - distance / MAX_DIST).powi(4)));
+            } else {
+                // Repulsive force
+                wanted_dp_sum.add(dir.clone().mul(
+                    100.0 * f / (0.1 + (distance / MAX_DIST * 10.0).exp())
+                        * (1.0 - distance / MAX_DIST),
+                ));
+            }
 
+            let mut dv = n.vel.clone();
+            dv.sub(&self.vel);
+            dv.mul(f * 0.1);
+            // wanted_dp_sum.add(&dv);
+
+            adds += 1;
         }
         if wanted_dp_sum.mag() > 0.0 {
-            wanted_dp_sum.limit(self.max_acc);
-            self.vel.add( &wanted_dp_sum);
+            wanted_dp_sum.mul(self.max_acc / adds as f32);
+            // wanted_dp_sum.limit(self.max_acc);
+            self.vel.add(&wanted_dp_sum);
         }
     }
 
@@ -138,7 +248,6 @@ impl Agent {
             g.mul(update.gravity_f.powf(1.4) * 0.2 / (100.0 + mag * mag));
             self.vel.add(&g);
         }
-
 
         // Correct the player position
         while self.pos.x > update.w {
@@ -173,13 +282,12 @@ impl Agent {
         //     q,
         //     g,
         //     q*g, (q*g).max(0.1));
-        let col = hsla(self.color, 60.0, 50.0, (q + g) / 2.0);
+        let col = hsla(self.color / 360.0, 0.8, 0.4, (q + g) / 2.0);
         // let col = graphics::Color::new(1.0,1.0,1.0, (q*g).max(0.4));
-        draw.ellipse()
+        draw.rect()
             .color(col)
             .x_y(self.pos.x, self.pos.y)
-            .w_h(10.0, 10.0)
-            .radius(2.8);
+            .w_h(1.5, 1.5);
 
         //     2.8,
         //     1.0,

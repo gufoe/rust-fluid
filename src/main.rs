@@ -7,10 +7,10 @@ mod latex;
 mod utils;
 mod vec;
 
-const AGENT_NUM: usize = 6000;
+const AGENT_NUM: usize = 600;
 const ST_LEN: usize = 40;
 #[allow(dead_code)]
-const BRUSH_SIZE: f32 = 200.0;
+const BRUSH_SIZE: f32 = 100.0;
 #[allow(unused)]
 macro_rules! map(
     { $($key:expr => $value:expr),+ } => {
@@ -31,7 +31,11 @@ fn model(app: &App) -> MyGame {
     MyGame::new(app)
 }
 fn update(app: &App, game: &mut MyGame, _update: Update) {
-    game.update(app);
+    if game.agents.is_empty() {
+        game.init_agents(app)
+    }
+    game.mouse_events(app);
+    game.update_agents(app);
 }
 fn view(app: &App, game: &MyGame, frame: Frame) {
     game.view(app, frame);
@@ -118,12 +122,12 @@ impl MyGame {
             self.agents = ag.clone();
             self.latex_div = ld as f32;
             // Boot up
-            self.update(app);
+            self.update_agents(app);
 
             // Measure
             let t_start = utils::now();
             for _ in 0..3 {
-                self.update(app);
+                self.update_agents(app);
             }
             let t_diff = utils::now() - t_start;
 
@@ -138,12 +142,12 @@ impl MyGame {
         }
         println!("adj_latex: best latex div: {:?}", min.unwrap());
         self.agents = ag;
-        self.latex_div = min.unwrap().1 + 6.0;
+        self.latex_div = min.unwrap().1;
         self.restart_fps();
     }
 
     pub fn update_latex(&mut self, w: f32, h: f32) {
-        let mut latex = Latex2D::new(w / 2.0 / self.latex_div, w, h);
+        let mut latex = Latex2D::new(w / self.latex_div, w, h);
         let _t0 = utils::now();
         self.agents
             .iter()
@@ -173,13 +177,7 @@ impl MyGame {
             self.avg_stats_range.remove(0);
         }
     }
-    pub fn update(&mut self, app: &App) {
-        if self.agents.is_empty() {
-            self.init_agents(app)
-        }
-        self.mouse_motion_event(app);
-        self.prev_mouse = Some(app.mouse.clone());
-
+    pub fn update_agents(&mut self, app: &App) {
         let (w, h) = app.window_rect().w_h();
         let pos = Vec2::new(app.mouse.x, app.mouse.y);
         app.mouse.buttons.left();
@@ -323,11 +321,18 @@ impl MyGame {
         draw.to_frame(app, &frame).unwrap();
     }
 
-    fn mouse_motion_event(&mut self, app: &App) {
+    fn mouse_events(&mut self, app: &App) {
         if self.prev_mouse.is_none() {
+            self.prev_mouse = Some(app.mouse.clone());
             return;
         }
         let prev = self.prev_mouse.clone().unwrap();
+        self.prev_mouse = Some(app.mouse.clone());
+
+        if prev.buttons.middle().is_down() && app.mouse.buttons.middle().is_up() {
+            self.adjust_latex_div(app);
+        }
+
         let p = vec::Vec::new_from(
             app.mouse.x + app.window_rect().w() / 2.0,
             app.mouse.y + app.window_rect().h() / 2.0,
@@ -360,7 +365,7 @@ impl MyGame {
                 }
                 let mut d = d.clone();
                 // d.mul(2.0);
-                d.mul((1.0 - dist / radius) * 0.1);
+                d.mul((1.0 - dist / radius) * 0.3);
                 x.vel.add(&d);
                 // x.pos.add(&d);
             });
@@ -577,16 +582,49 @@ fn test_latex() {
     let w = 100.0;
     let h = 100.0;
     let mut latex = latex::Latex2D::new(res, w, h);
-    latex.add((99.0, 0.0), 1);
-    // assert!(latex.get((0.0, 0.0), 2.0) == vec![1]);
-    // assert!(latex.get((0.0, 0.0), 10.0) == vec![1]);
-    // assert!(latex.get((0.0, 0.0), 20.0) == vec![1]);
-    // assert!(latex.get((0.0, 0.0), 1000.0) == vec![1]);
+    latex.add((0.0, 0.0), 1);
+    assert_eq!(latex.get((0.0, 0.0), 2.0), vec![&1]);
+    assert_eq!(latex.get((0.0, 0.0), 10.0), vec![&1]);
+    assert_eq!(latex.get((0.0, 0.0), 20.0), vec![&1]);
+    assert_eq!(latex.get((0.0, 0.0), 1000.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 2.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 10.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 20.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 1000.0), vec![&1]);
+    assert_eq!(latex.get((w, h - 3.0), 2.0), vec![] as Vec<&i32>);
+    assert_eq!(latex.get((w, h - 3.0), 3.0), vec![&1] as Vec<&i32>);
+    assert_eq!(latex.get((0.0, 9.0), 2.0), vec![&1] as Vec<&i32>);
 
+    assert_eq!(latex.get((0.0, -9.0), 2.0), vec![] as Vec<&i32>);
+    assert_eq!(latex.get((0.0, -9.0), 10.0), vec![&1] as Vec<&i32>);
+
+    assert_eq!(latex.get((w, h + 3.0), 3.0), vec![&1] as Vec<&i32>);
+    assert_eq!(latex.get((w, h), 10.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 20.0), vec![&1]);
+    assert_eq!(latex.get((w, h), 1000.0), vec![&1]);
+}
+
+#[test]
+fn test_latex2() {
+    let res = 10.0;
+    let w = 100.0;
+    let h = 100.0;
     let mut latex = latex::Latex2D::new(res, w, h);
     latex.add((99.0, 99.0), 1);
     latex.add((51.0, 0.0), 2);
     latex.add((50.0, 0.0), 3);
-    // assert!(latex.get((0.0, 0.0), 2.0) == vec![1]);
-    // assert!(latex.get((50.0, 0.0), 10.0) == vec![2, 3]);
+    assert_eq!(latex.get((0.0, 0.0), 2.0), vec![&1]);
+    assert_eq!(latex.get((50.0, 0.0), 10.0), vec![&2, &3]);
+}
+#[test]
+fn test_latex3() {
+    let res = 10.0;
+    let w = 100.0;
+    let h = 100.0;
+    let mut latex = latex::Latex2D::new(res, w, h);
+    latex.add((99.0, 99.0), 1);
+    latex.add((51.0, 0.0), 2);
+    latex.add((50.0, 0.0), 3);
+    assert_eq!(latex.get((0.0, 0.0), 2.0), vec![&1]);
+    assert_eq!(latex.get((50.0, 0.0), 10.0), vec![&2, &3]);
 }
