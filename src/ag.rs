@@ -9,9 +9,11 @@ use rand::random;
 use crate::utils;
 use crate::vec;
 
-const MAX_DIST: f32 = 400.0;
-const WANTED_DP_LEN: f32 = 25.0;
-const KEEP: usize = 0;
+const MAX_DIST: f32 = 60.0;
+const WANTED_DP_LEN: f32 = 5.0;
+const MAXACC: f32 = 10.5;
+const DRAG: f32 = 0.4;
+const KEEP: usize = 20;
 // let rules = [
 //     [1.0, -0.5, 0.0],
 //     [0.0, 1.0, -0.5],
@@ -26,26 +28,38 @@ const KEEP: usize = 0;
 //     [-0.2,-0.2,1.0,1.1],
 //     [1.1,-0.2,-0.2,1.0],
 // ];
-const RULES: [[f32; 6]; 6] = [
-    [0.9,0.9, 0.0, 0.0, -0.1, 0.0],
-    [-0.1, 0.9,0.9, 0.0, 0.0, 0.0],
-    [-0.2, -0.1, 0.9,0.9, 0.0, 0.0],
-    [-0.2, -0.2, -0.1, 0.9,1.2, 0.0],
-    [-0.2, -0.2, -0.2, -0.3, 2.4, 0.0],
-    [-1., -1., -1., -1., -1., 0.0],
-];
+// const RULES: [[f32; 8]; 8] = [
+//     [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.1],
+//     [-0.1, 2.0, 1.2, 0.2, 0.1, 0.0, -0.05, -0.05],
+//     [-0.05, -0.1, 2.0, 1.2, 0.2, 0.1, 0.0, -0.05],
+//     [-0.05, -0.05, -0.1, 2.0, 1.2, 0.2, 0.1, 0.0],
+//     [0.0, -0.05, -0.05, -0.1, 2.0, 1.2, 0.2, 0.1],
+//     [0.1, 0.0, -0.05, -0.05, -0.1, 2.0, 1.2, 0.2],
+//     [0.2, 0.1, 0.0, -0.05, -0.05, -0.1, 2.0, 1.2],
+//     [1.2, 0.2, 0.1, 0.0, -0.05, -0.05, -0.1, 2.0],
+// ];
+// const RULES: [[f32; 8]; 8] = [
+//     [0.9, 0.9, 0.0, 0.0, -0.1, -0.2, -0.2, 0.0],
+//     [-0.1, 0.9, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0],
+//     [-0.2, -0.1, 0.9, 0.9, -0.2, 0.0, 0.0,-0.2],
+//     [-0.2, -0.2, -0.1, 0.9, 1.2, 0.0, -0.2, 0.0],
+//     [-0.2, -0.2, -0.2, -0.3, 2.4, 0.0, 0.0, -0.2],
+//     [0.0, -0.2, -0.2, -0.1, 0.9, 1.2, 0.0, 0.0],
+//     [2.4, 0.0, -0.2, -0.2, -0.2, -0.3, 2.4, 0.0],
+//     [-1., -1., -1., -1., -1., -1., -1., -2.],
+// ];
 // const RULES: [[f32; 4]; 4] = [
 //     [1.0, 0.0, 0.0, -1.0],
 //     [0.0, 1.0, 0.5, 0.0],
 //     [0.0, 0.0, 1.0, 0.5],
 //     [0.5, 0.0, 0.0, 1.0],
 // ];
-// const RULES: [[f32; 4]; 4] = [
-//     [2.0, 1.0, -1.0, 0.0],
-//     [-1.0, 2.0, 1.0, -1.0],
-//     [1.0, -1.0, 2.0, 1.0],
-//     [0.0, 1.0, -1.0, 2.0],
-// ];
+const RULES: [[f32; 4]; 4] = [
+    [2.0, 0.5, -1.0, 0.0],
+    [-1.0, 2.0, 0.5, -1.0],
+    [0.5, -1.0, 2.0, 0.5],
+    [0.0, 0.5, -1.0, 2.0],
+];
 
 // const rules = [
 //   [1.0, 0.0, random::<f32>()*2.0-1.0, 0.0, 0.0, 0.0, ],
@@ -104,11 +118,11 @@ impl Agent {
             // max_acc: utils::rand_float(0.01, 0.4),
             // weirdness: utils::rand_float(0.1, 15.5),
             radius: 2.0,
-            view_range: 200.0,
+            view_range: MAX_DIST,
             pos_w: -0.1,
             vel_w: 1.0,
-            drag: 0.2,
-            max_acc: 0.14,
+            drag: DRAG,
+            max_acc: MAXACC,
             weirdness: 1.0,
         };
         // utils::norm(&mut a.color);
@@ -140,6 +154,16 @@ impl Agent {
         };
         // Items within latex distance
         let neighbours = update.agents.get((self.pos.x, self.pos.y), self.view_range);
+        if self.id == 2 {
+            println!(
+                "count: {}  res = {:.02}x{:.02} {:.02}x{:.02} ",
+                neighbours.len(),
+                update.agents.vsize().0,
+                update.agents.vsize().1,
+                update.agents.w,
+                update.agents.h,
+            );
+        }
 
         let mut neighbours: Vec<(f32, &Agent)> = neighbours
             .into_iter()
@@ -208,12 +232,15 @@ impl Agent {
 
             if f > 0.0 {
                 let delta = distance - WANTED_DP_LEN;
-                wanted_dp_sum.add(dir.clone().mul(0.7 * delta * f * (1.0 - distance / MAX_DIST).powi(4)));
+                wanted_dp_sum.add(
+                    dir.clone()
+                        .mul(0.7 * delta * f * (1.0 - distance / MAX_DIST).powi(2)),
+                );
             } else {
                 // Repulsive force
                 wanted_dp_sum.add(dir.clone().mul(
                     100.0 * f / (0.1 + (distance / MAX_DIST * 10.0).exp())
-                        * (1.0 - distance / MAX_DIST),
+                        * (1.0 - distance / MAX_DIST).powi(2),
                 ));
             }
 
@@ -225,7 +252,8 @@ impl Agent {
             adds += 1;
         }
         if wanted_dp_sum.mag() > 0.0 {
-            wanted_dp_sum.mul(self.max_acc / adds as f32);
+            // wanted_dp_sum.mul(self.max_acc / adds as f32);
+            wanted_dp_sum.mul(self.max_acc * 0.002);
             // wanted_dp_sum.limit(self.max_acc);
             self.vel.add(&wanted_dp_sum);
         }

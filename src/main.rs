@@ -7,7 +7,7 @@ mod latex;
 mod utils;
 mod vec;
 
-const AGENT_NUM: usize = 600;
+const AGENT_NUM: usize = 6000;
 const ST_LEN: usize = 40;
 #[allow(dead_code)]
 const BRUSH_SIZE: f32 = 100.0;
@@ -35,11 +35,14 @@ fn update(app: &App, game: &mut MyGame, _update: Update) {
         game.init_agents(app)
     }
     game.mouse_events(app);
-    game.update_agents(app);
+    game.update_agents(app, true);
 }
 fn view(app: &App, game: &MyGame, frame: Frame) {
     game.view(app, frame);
 }
+
+#[derive(Default)]
+struct GemeOptions {}
 
 struct MyGame {
     // Your state here...
@@ -72,7 +75,7 @@ impl MyGame {
             frames: 0,
             frames_start: utils::now(),
             agents: vec![],
-            latex: Latex2D::new(0.0, 0.0, 0.0),
+            latex: Latex2D::new(1.0, 1.0, 0.0, 0.0),
             gravity_mod: 0,
             gravity_f: 1.0,
             latex_div: 4.0,
@@ -118,26 +121,26 @@ impl MyGame {
     pub fn adjust_latex_div(&mut self, app: &App) {
         let mut min: Option<(f64, f32)> = None;
         let ag = self.agents.clone();
-        for ld in 2..70 {
+        for _ in 0..10 {
             self.agents = ag.clone();
-            self.latex_div = ld as f32;
+            self.latex_div = 10.0 + (random::<usize>() % 100) as f32;
             // Boot up
-            self.update_agents(app);
+            self.update_agents(app, false);
 
             // Measure
             let t_start = utils::now();
-            for _ in 0..3 {
-                self.update_agents(app);
+            for _ in 0..4 {
+                self.update_agents(app, false);
             }
             let t_diff = utils::now() - t_start;
 
             // Compare
-            println!("adj_latex: ld {}: {:.4}", ld, t_diff);
-            if !min.is_none() && min.unwrap().0 < t_diff {
-                break;
-            }
+            println!("adj_latex: ld {}: {:.4}", self.latex_div, t_diff);
+            // if !min.is_none() && min.unwrap().0 < t_diff {
+            //     break;
+            // }
             if min.is_none() || min.unwrap().0 > t_diff {
-                min = Some((t_diff, ld as f32));
+                min = Some((t_diff, self.latex_div as f32));
             }
         }
         println!("adj_latex: best latex div: {:?}", min.unwrap());
@@ -147,7 +150,7 @@ impl MyGame {
     }
 
     pub fn update_latex(&mut self, w: f32, h: f32) {
-        let mut latex = Latex2D::new(w / self.latex_div, w, h);
+        let mut latex = Latex2D::new(w / self.latex_div, h / self.latex_div, w, h);
         let _t0 = utils::now();
         self.agents
             .iter()
@@ -177,7 +180,7 @@ impl MyGame {
             self.avg_stats_range.remove(0);
         }
     }
-    pub fn update_agents(&mut self, app: &App) {
+    pub fn update_agents(&mut self, app: &App, parallel: bool) {
         let (w, h) = app.window_rect().w_h();
         let pos = Vec2::new(app.mouse.x, app.mouse.y);
         app.mouse.buttons.left();
@@ -209,12 +212,20 @@ impl MyGame {
                     _ => vec![],
                 },
             };
+            tim.tick("update ready");
 
-            self.agents.par_iter_mut().for_each(|x| x.update(&update));
+            if parallel {
+                self.agents.par_iter_mut().for_each(|x| x.update(&update));
+            } else {
+                self.agents.par_iter_mut().for_each(|x| x.update(&update));
+            }
             self.frames += 1;
-            self.update_stats();
 
             tim.tick("agents updated");
+
+            self.update_stats();
+
+            tim.tick("stats updated");
             tim.show();
         }
         // println!("update:  {:.3}", utils::now() - _t0);
@@ -234,7 +245,7 @@ impl MyGame {
         // Draw bbackground
         // let mut mb_bg = &mut graphics::MeshBuilder::new();
         draw.rect()
-            .color(rgba(0.0, 0.0, 0.0, 0.97))
+            .color(rgba(0.0, 0.0, 0.0, 1.0))
             .w_h(w * 2.0, h * 2.0);
         //     graphics::DrawMode::fill(),
         //     graphics::Rect::new(0.0, 0.0, w, h),
@@ -307,7 +318,7 @@ impl MyGame {
         tim.tick("presented");
         // println!("present:    {:.3}", utils::now() - _t0);
 
-        print!("{}[2J", 27 as char);
+        // print!("{}[2J", 27 as char);
         println!(
             "FPS:  DRAW = {:.2}  UPDATE = {:.2}",
             0.0, // ggez::timer::fps(ctx),

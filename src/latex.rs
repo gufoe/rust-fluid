@@ -3,7 +3,8 @@ use hashbrown::HashMap;
 
 #[derive(Clone)]
 pub struct Latex2D<T> {
-    resolution: f32,
+    pub resx: f32,
+    pub resy: f32,
     pub w: f32,
     pub h: f32,
     cells: HashMap<(i16, i16), Vec<T>>,
@@ -17,9 +18,10 @@ impl<T> Latex2D<T>
 where
     T: Clone,
 {
-    pub fn new(resolution: f32, w: f32, h: f32) -> Latex2D<T> {
+    pub fn new(resx: f32,resy: f32, w: f32, h: f32) -> Latex2D<T> {
         Latex2D {
-            resolution,
+            resx,
+            resy,
             w,
             h,
             cells: HashMap::new(),
@@ -35,13 +37,18 @@ where
         }
     }
 
-    fn hash_f32(&self, p: f32) -> i16 {
-        f32_to_i16(p / self.resolution)
+    // fn hash_f32(&self, p: f32) -> i16 {
+    //     f32_to_i16(p / self.resolution)
+    // }
+    pub fn vsize(&self) -> (i16, i16) {
+        return (
+            f32_to_i16(self.w / self.resx),
+            f32_to_i16(self.h / self.resy),
+        );
     }
     fn hash(&self, p: (f32, f32)) -> (i16, i16) {
-        let mut p = (self.hash_f32(p.0), self.hash_f32(p.1));
-        let w = self.hash_f32(self.w);
-        let h = self.hash_f32(self.h);
+        let mut p = (f32_to_i16(p.0 / self.resx), f32_to_i16(p.1 / self.resy));
+        let (w, h) = self.vsize();
         while p.0 < 0 {
             p.0 += w;
         }
@@ -58,7 +65,7 @@ where
     }
 
     pub fn get(&self, pos: (f32, f32), radius: f32) -> Vec<&T> {
-        return flatten(self.cells.values().collect());
+        // return flatten(self.cells.values().collect());
         // return
         let mut ret = vec![];
         let start = self.hash((pos.0 - radius, pos.1 - radius));
@@ -72,6 +79,8 @@ where
         //     f32_to_i16(self.w / self.resolution),
         //     f32_to_i16(self.h / self.resolution)
         // );
+        let mut sx = 0;
+        let mut sy = 0;
         loop {
             let mut x = start.0;
             loop {
@@ -86,7 +95,8 @@ where
                 } else {
                     // println!("incr");
                     x += 1;
-                    x %= self.hash_f32(self.w);
+                    x %= self.vsize().0;
+                    sx+=1;
                 }
             }
 
@@ -94,10 +104,10 @@ where
                 break;
             } else {
                 y += 1;
-                y %= self.hash_f32(self.h);
+                y %= self.vsize().1;
+                sy+=1;
             }
         }
-
 
         return flatten(ret);
 
