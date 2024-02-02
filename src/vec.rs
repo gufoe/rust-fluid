@@ -9,6 +9,15 @@ impl Vec {
     pub fn new() -> Vec {
         Vec { x: 0., y: 0. }
     }
+    pub fn from_tuple(tuple: &(f32, f32)) -> Self {
+        Vec {
+            x: tuple.0,
+            y: tuple.1,
+        }
+    }
+    pub fn as_tuple(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
     #[allow(dead_code)]
     pub fn new_from(x: f32, y: f32) -> Vec {
         Vec { x, y }

@@ -1,25 +1,27 @@
 use std::cmp::Ordering;
 
 use nannou::prelude::hsla;
-use nannou::prelude::rgba;
-use nannou::wgpu::Color;
 use nannou::Draw;
-use rand::random;
 
+use crate::latex::HasPosition;
 use crate::utils;
 use crate::vec;
 
-const MAX_DIST: f32 = 60.0;
-const WANTED_DP_LEN: f32 = 5.0;
-const MAXACC: f32 = 10.5;
-const DRAG: f32 = 0.4;
-const KEEP: usize = 20;
-// let rules = [
+const MAX_DIST: f32 = 120.0;
+const WANTED_DP_LEN: f32 = 4.0;
+const MAXACC: f32 = 0.005;
+const DRAG: f32 = 0.02;
+const AG_SIZE: f32 = 1.5;
+const KEEP: usize = 3;
+const DRAW_RANGE: bool = false;
+const DRAW_WANTED_DP_LEN: bool = false;
+// const RULES: [[f32; 3]; 3]  = [
 //     [1.0, -0.5, 0.0],
 //     [0.0, 1.0, -0.5],
 //     [-0.5, 0.0, 1.0],
 // ];
-// const RULES: [[f32; 2]; 2] = [[1.0, 0.5], [-1.0, 1.0]];
+// const RULES: [[f32; 1]; 1] = [[1.0]];
+const RULES: [[f32; 2]; 2] = [[1.0, -0.1], [1.0, 0.1]];
 // const RULES: [[f32; 2]; 2] = [[1.0, 1.0], [-1.0, 1.0]];
 // const RULES: [[f32; 1]; 1] = [[1.0]];
 // let rules = [
@@ -54,12 +56,12 @@ const KEEP: usize = 20;
 //     [0.0, 0.0, 1.0, 0.5],
 //     [0.5, 0.0, 0.0, 1.0],
 // ];
-const RULES: [[f32; 4]; 4] = [
-    [2.0, 0.5, -1.0, 0.0],
-    [-1.0, 2.0, 0.5, -1.0],
-    [0.5, -1.0, 2.0, 0.5],
-    [0.0, 0.5, -1.0, 2.0],
-];
+// const RULES: [[f32; 4]; 4] = [
+//     [2.0, 0.5, -1.0, 0.0],
+//     [-1.0, 2.0, 0.5, -1.0],
+//     [0.5, -1.0, 2.0, 0.5],
+//     [0.0, 0.5, -1.0, 2.0],
+// ];
 
 // const rules = [
 //   [1.0, 0.0, random::<f32>()*2.0-1.0, 0.0, 0.0, 0.0, ],
@@ -153,7 +155,9 @@ impl Agent {
             return p;
         };
         // Items within latex distance
-        let neighbours = update.agents.get((self.pos.x, self.pos.y), self.view_range);
+        let neighbours = update
+            .agents
+            .get_safe((self.pos.x, self.pos.y), self.view_range);
         if self.id == 2 {
             println!(
                 "count: {}  res = {:.02}x{:.02} {:.02}x{:.02} ",
@@ -176,6 +180,13 @@ impl Agent {
 
             if let Some(n) = n {
                 if n.1.id == self.id {
+                    continue;
+                }
+                // for (_dist, n) in neighbours {
+                let f = color_friendlyness(n.1.color);
+                // println!("xx fr {} {:.2}", f, distance / MAX_DIST);
+
+                if f == 0.0 {
                     continue;
                 }
                 // println!("xx {:?}", top_keep.iter().map(|x| x.0).collect::<Vec<_>>());
@@ -228,7 +239,7 @@ impl Agent {
 
             // This is the position difference normalized
             let mut dir = dp.clone();
-            dir.div(distance);
+            dir.norm(1.0);
 
             if f > 0.0 {
                 let delta = distance - WANTED_DP_LEN;
@@ -253,10 +264,45 @@ impl Agent {
         }
         if wanted_dp_sum.mag() > 0.0 {
             // wanted_dp_sum.mul(self.max_acc / adds as f32);
-            wanted_dp_sum.mul(self.max_acc * 0.002);
+            wanted_dp_sum.mul(self.max_acc);
             // wanted_dp_sum.limit(self.max_acc);
             self.vel.add(&wanted_dp_sum);
         }
+    }
+
+    pub fn new_update2(&mut self, update: &Update) {
+        let by_dist = update.agents.get(self.pos.as_tuple(), 1000.0);
+        let mut by_dist = by_dist
+            .iter()
+            .filter_map(|agent| {
+                if agent.id == self.id {
+                    None
+                } else {
+                    Some((self.pos.dist_mod(&agent.pos, update.w, update.h), agent))
+                }
+            })
+            .collect::<Vec<_>>();
+        by_dist.sort_by(|(a, _), (b, _)| {
+            if a > b {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+        if by_dist.is_empty() {
+            return;
+        }
+        // Skip self
+        let (dist, closest) = by_dist[0];
+        let mut dir = closest.pos.clone();
+
+        // run away: the closest we are, the more we run
+        // dir.sub(&self.pos).norm(10.0 / (dist + 1.0));
+        // self.vel.sub(&dir);
+
+        // come togheter: the closer, the less we run
+        dir.sub(&self.pos).limit(dist / 1000.0);
+        self.vel.add(&dir);
     }
 
     pub fn update(&mut self, update: &Update) {
@@ -315,7 +361,24 @@ impl Agent {
         draw.rect()
             .color(col)
             .x_y(self.pos.x, self.pos.y)
-            .w_h(1.5, 1.5);
+            .w_h(AG_SIZE, AG_SIZE);
+        let col = hsla(self.color / 360.0, 0.8, 0.4, 0.01);
+        // draw.ellipse()
+        //     .color(col)
+        //     .x_y(self.pos.x, self.pos.y)
+        //     .w_h(self.view_range, self.view_range);
+        if DRAW_RANGE {
+            draw.ellipse()
+                .color(col)
+                .x_y(self.pos.x, self.pos.y)
+                .w_h(MAX_DIST * 2.0, MAX_DIST * 2.0);
+        }
+        if DRAW_WANTED_DP_LEN {
+            draw.ellipse()
+                .color(col)
+                .x_y(self.pos.x, self.pos.y)
+                .w_h(WANTED_DP_LEN * 2.0, WANTED_DP_LEN * 2.0);
+        }
 
         //     2.8,
         //     1.0,
@@ -330,5 +393,11 @@ impl Agent {
         //     col,
         //     // graphics::Color::new(g, 1.0 - g * 0.9, q, 0.5+g*0.5),
         // );
+    }
+}
+
+impl HasPosition for Agent {
+    fn get_latex_pos(&self) -> &vec::Vec {
+        &self.pos
     }
 }

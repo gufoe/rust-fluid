@@ -125,12 +125,12 @@ impl MyGame {
             self.agents = ag.clone();
             self.latex_div = 10.0 + (random::<usize>() % 100) as f32;
             // Boot up
-            self.update_agents(app, false);
+            self.update_agents(app, true);
 
             // Measure
             let t_start = utils::now();
             for _ in 0..4 {
-                self.update_agents(app, false);
+                self.update_agents(app, true);
             }
             let t_diff = utils::now() - t_start;
 
@@ -217,7 +217,7 @@ impl MyGame {
             if parallel {
                 self.agents.par_iter_mut().for_each(|x| x.update(&update));
             } else {
-                self.agents.par_iter_mut().for_each(|x| x.update(&update));
+                self.agents.iter_mut().for_each(|x| x.update(&update));
             }
             self.frames += 1;
 

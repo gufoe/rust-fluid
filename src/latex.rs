@@ -1,6 +1,8 @@
 // use std::collections::HashMap;
 use hashbrown::HashMap;
 
+use crate::vec;
+
 #[derive(Clone)]
 pub struct Latex2D<T> {
     pub resx: f32,
@@ -14,11 +16,15 @@ fn f32_to_i16(n: f32) -> i16 {
     n.floor() as i16
 }
 
+pub trait HasPosition {
+    fn get_latex_pos(&self) -> &vec::Vec;
+}
+
 impl<T> Latex2D<T>
 where
-    T: Clone,
+    T: Clone + HasPosition,
 {
-    pub fn new(resx: f32,resy: f32, w: f32, h: f32) -> Latex2D<T> {
+    pub fn new(resx: f32, resy: f32, w: f32, h: f32) -> Latex2D<T> {
         Latex2D {
             resx,
             resy,
@@ -64,6 +70,22 @@ where
         p
     }
 
+    pub fn get_safe(&self, pos: (f32, f32), radius: f32) -> Vec<&T> {
+        self.cells
+            .iter()
+            .flat_map(|(_, items): (&(i16, i16), &Vec<T>)| {
+                items
+                    .iter()
+                    .filter(|x| {
+                        x.get_latex_pos()
+                            .dist_mod(&vec::Vec::from_tuple(&pos), self.w, self.h)
+                            < radius
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
     pub fn get(&self, pos: (f32, f32), radius: f32) -> Vec<&T> {
         // return flatten(self.cells.values().collect());
         // return
@@ -96,7 +118,7 @@ where
                     // println!("incr");
                     x += 1;
                     x %= self.vsize().0;
-                    sx+=1;
+                    sx += 1;
                 }
             }
 
@@ -105,7 +127,7 @@ where
             } else {
                 y += 1;
                 y %= self.vsize().1;
-                sy+=1;
+                sy += 1;
             }
         }
 
